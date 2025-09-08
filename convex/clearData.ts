@@ -54,7 +54,7 @@ export const clearAllSampleData = mutation({
     }
     
     // 9. Clear logs
-    const logs = await ctx.db.query("logs").collect();
+    const logs = await ctx.db.query("actionLogs").collect();
     for (const log of logs) {
       await ctx.db.delete(log._id);
     }

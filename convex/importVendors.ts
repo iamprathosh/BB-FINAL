@@ -510,15 +510,8 @@ export const importVendorsFromExcel = mutation({
           email: vendor.email,
           phone: vendor.phone || undefined,
           address: vendor.address || undefined,
-          city: vendor.city || undefined,
-          state: vendor.state || undefined,
-          zipCode: vendor.zipCode || undefined,
           contactPerson: vendor.contactPerson || undefined,
-          vendorType: vendor.vendorType || undefined,
-          specialties: vendor.specialties || undefined,
-          certifications: vendor.certifications || undefined,
-          paymentTerms: vendor.paymentTerms || undefined,
-          isActive: vendor.isActive !== undefined ? vendor.isActive : true,
+          // Note: specialties, certifications, paymentTerms, and isActive fields are not in the current schema
         });
         importedCount++;
       } catch (error) {

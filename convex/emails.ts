@@ -33,13 +33,13 @@ export const sendPurchaseOrderEmail = mutation({
     // Get vendors for this product
     const vendorProducts = await ctx.db
       .query("vendorProducts")
-      .withIndex("by_product", (q) => q.eq("productId", args.productId))
+.filter((q) => q.eq(q.field("productId"), args.productId))
       .collect();
 
     const vendors = await Promise.all(
       vendorProducts.map(async (vp) => {
         const vendor = await ctx.db.get(vp.vendorId);
-        return { ...vendor, price: vp.price };
+        return { ...vendor, vendorPrice: vp.vendorPrice };
       })
     );
 

@@ -16,12 +16,12 @@ const config: Config = {
         background: "var(--color-background)",
         foreground: "var(--color-foreground)",
         primary: {
-          DEFAULT: "#D10D38", // B&B Red - Direct hex
-          foreground: "#FFFFFF",
+          DEFAULT: "var(--color-primary)", // Use CSS variable
+          foreground: "var(--color-primary-foreground)",
         },
         secondary: {
-          DEFAULT: "#153275", // B&B Blue - Direct hex
-          foreground: "#FFFFFF",
+          DEFAULT: "var(--color-secondary)", // Use CSS variable
+          foreground: "var(--color-secondary-foreground)",
         },
         destructive: {
           DEFAULT: "var(--color-destructive)",
@@ -32,8 +32,8 @@ const config: Config = {
           foreground: "var(--color-muted-foreground)",
         },
         accent: {
-          DEFAULT: "#0374EF", // B&B Light Blue - Direct hex
-          foreground: "#FFFFFF",
+          DEFAULT: "var(--color-accent)", // Use CSS variable
+          foreground: "var(--color-accent-foreground)",
         },
         popover: {
           DEFAULT: "var(--color-popover)",
@@ -44,11 +44,11 @@ const config: Config = {
           foreground: "var(--color-card-foreground)",
         },
         chart: {
-          "1": "#D10D38", // B&B Red
-          "2": "#0374EF", // B&B Light Blue
-          "3": "#886DE8", // B&B Purple
-          "4": "#F7C959", // B&B Yellow
-          "5": "#EF7037", // B&B Orange
+          "1": "var(--color-chart-1)", // Use CSS variable
+          "2": "var(--color-chart-2)", // Use CSS variable
+          "3": "var(--color-chart-3)", // Use CSS variable
+          "4": "var(--color-chart-4)", // Use CSS variable
+          "5": "var(--color-chart-5)", // Use CSS variable
         },
         sidebar: {
           DEFAULT: "var(--color-sidebar)",

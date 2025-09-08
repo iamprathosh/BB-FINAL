@@ -48,8 +48,8 @@ export default function AdminSetupPage() {
   const deleteCategory = useMutation(api.categories.deleteCategory);
   const addUnit = useMutation(api.units.addUnit);
   const deleteUnit = useMutation(api.units.deleteUnit);
-  const clearAllSampleData = useMutation(api.admin.clearAllSampleData);
-  const importBBInventoryMasterList = useMutation(api.admin.importBBInventoryMasterList);
+  const clearAllSampleData = useMutation(api.clearData.clearAllSampleData);
+  const createSampleData = useMutation(api.sampleData.createSampleData);
   
   // Check if there are any existing admins
   const existingAdmins = users?.filter(user => user.role === 'admin') || [];
@@ -63,7 +63,7 @@ export default function AdminSetupPage() {
 
     try {
       await updateUserRole({
-        userId: selectedUserId as Id<"users">,
+        userId: selectedUserId as Id<"appUsers">,
         role: selectedRole,
       });
       
@@ -477,16 +477,16 @@ export default function AdminSetupPage() {
                 <Button 
                   onClick={async () => {
                     try {
-                      await importBBInventoryMasterList();
-                      toast.success("B&B Inventory Master List imported successfully!");
+                      const result = await createSampleData();
+                      toast.success(result || "B&B Construction inventory created successfully!");
                     } catch (error: any) {
-                      toast.error(error.message || "Failed to import B&B inventory");
+                      toast.error(error.message || "Failed to create B&B inventory");
                     }
                   }}
                   className="w-full flex items-center gap-2"
                 >
                   <Download className="h-4 w-4" />
-                  Import B&B Inventory Master List
+                  Create B&B Construction Inventory
                 </Button>
               </div>
             </div>

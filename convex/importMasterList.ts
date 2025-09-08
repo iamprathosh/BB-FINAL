@@ -12,8 +12,8 @@ export const importBBInventoryMasterList = mutation({
     }
 
     const user = await ctx.db
-      .query("users")
-      .withIndex("by_auth_id", (q) => q.eq("authId", userId))
+      .query("appUsers")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", userId))
       .unique();
 
     if (!user) {
@@ -55,10 +55,6 @@ export const importBBInventoryMasterList = mutation({
       const categoryId = await ctx.db.insert("categories", {
         name: category.name,
         description: category.description,
-        icon: category.icon,
-        isActive: true,
-        createdBy: user._id,
-        createdAt: Date.now(),
       });
       createdCategories.push({ id: categoryId, name: category.name });
     }
@@ -69,10 +65,6 @@ export const importBBInventoryMasterList = mutation({
       const unitId = await ctx.db.insert("unitsOfMeasure", {
         name: unit.name,
         abbreviation: unit.abbreviation,
-        type: unit.type,
-        isActive: true,
-        createdBy: user._id,
-        createdAt: Date.now(),
       });
       createdUnits.push({ id: unitId, name: unit.name, abbreviation: unit.abbreviation });
     }
@@ -140,21 +132,9 @@ export const importBBInventoryMasterList = mutation({
           name: product.name,
           sku: product.sku,
           quantity: product.quantity,
-          price: product.price,
-          category: product.category,
-          unitOfMeasure: unit.abbreviation,
-          materialType: product.category.toLowerCase(),
-          
-          // MAUC fields
-          movingAverageCost: product.costPrice,
-          totalCostInStock: product.quantity * product.costPrice,
-          totalUnitsInStock: product.quantity,
-          lastPurchasePrice: product.costPrice,
-          lastPurchaseDate: Date.now(),
-          
-          // Legacy fields
-          costPrice: product.costPrice,
-          reorderLevel: Math.floor(product.quantity * 0.2), // 20% of current stock
+          price: product.costPrice,
+          categoryId: categoryId,
+          unitOfMeasureId: unit.id,
           description: `${product.name} for construction use`,
         });
         createdProducts++;
@@ -163,13 +143,9 @@ export const importBBInventoryMasterList = mutation({
         await ctx.db.insert("inventoryTransactions", {
           productId: productId,
           type: "receive",
-          quantity: product.quantity,
-          unitPrice: product.costPrice,
-          maucAtTimeOfTransaction: product.costPrice,
-          totalCostImpact: product.quantity * product.costPrice,
-          newMaucAfterTransaction: product.costPrice,
+          quantityChange: product.quantity,
+          unitCostAtTransaction: product.costPrice,
           date: Date.now(),
-          reference: "INITIAL_STOCK",
           userId: user._id,
           notes: "Initial stock import from B&B Master List",
         });

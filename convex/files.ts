@@ -13,21 +13,14 @@ export const saveFile = mutation({
     storageId: v.id("_storage"),
     name: v.string(),
     type: v.string(),
-    size: v.number(),
-    productId: v.optional(v.id("products")),
+    uploadedById: v.id("appUsers"),
   },
   handler: async (ctx, args) => {
-    const url = await ctx.storage.getUrl(args.storageId);
-    if (!url) {
-      throw new Error("Failed to get storage URL");
-    }
-    
     const fileId = await ctx.db.insert("files", {
       name: args.name,
-      url: url,
       type: args.type,
-      size: args.size,
-      productId: args.productId,
+      storageId: args.storageId,
+      uploadedById: args.uploadedById,
     });
     return fileId;
   },
@@ -43,10 +36,14 @@ export const getFile = query({
 export const getFilesByProduct = query({
   args: { productId: v.id("products") },
   handler: async (ctx, args) => {
-    return await ctx.db
-      .query("files")
-      .withIndex("by_product", (q) => q.eq("productId", args.productId))
-      .collect();
+    // Since we don't have a by_product index anymore, 
+    // we need to filter all files by productId reference in products table
+    const product = await ctx.db.get(args.productId);
+    if (!product || !product.imageId) {
+      return [];
+    }
+    const file = await ctx.db.get(product.imageId);
+    return file ? [file] : [];
   },
 });
 

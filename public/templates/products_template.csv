@@ -1,0 +1,8 @@
+name,description,sku,partNumber,quantity,price,categoryName,unitName,location
+Portland Cement,High quality portland cement for construction,CEM-001,PC-42.5,50,12.50,Cement & Concrete,bag,Warehouse A
+Ready Mix Concrete,Pre-mixed concrete for quick setup,CEM-002,RMC-3000,25,120.00,Cement & Concrete,m³,Warehouse B
+Rebar 10mm x 6m,Steel reinforcement bar for concrete,RB-001,R10-6000,200,18.50,Steel & Rebar,pcs,Storage Yard
+Concrete Blocks 8",Standard concrete masonry blocks,BLK-001,CMU-8,500,2.50,Blocks & Bricks,pcs,Block Storage
+Construction Sand,Washed construction sand for mixing,AGG-001,CS-001,15,45.00,Sand & Gravel,m³,Sand Pit
+Electrical Wire 12 AWG,Copper electrical wire for residential use,ELE-001,EW-12,500,2.50,Electrical,m,Electrical Room
+PVC Pipe 4" x 6m,Schedule 40 PVC pipe for plumbing,PLB-001,PVC4-6000,80,28.50,Plumbing,pcs,Pipe Storage

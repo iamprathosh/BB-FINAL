@@ -14,6 +14,7 @@ import {
   RefreshCw,
   Building2
 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function HomePage() {
   const router = useRouter();
@@ -28,7 +29,10 @@ export default function HomePage() {
   const handleCreateSampleData = async () => {
     setIsCreatingSampleData(true);
     try {
-      await createSampleData();
+      const result = await createSampleData();
+      toast.success(result || "Sample data created successfully!"); // FIX: Show success message
+    } catch (error: any) {
+      toast.error(error.message || "Failed to create sample data"); // FIX: Show error message
     } finally {
       setIsCreatingSampleData(false);
     }
@@ -38,7 +42,18 @@ export default function HomePage() {
     setIsImportingVendors(true);
     try {
       const result = await importVendors();
-      console.log('Import result:', result);
+      // FIX: Provide feedback based on the mutation's response
+      if (result && typeof result === 'object' && 'success' in result) {
+        if (result.success) {
+          toast.success(result.message || "Vendors imported successfully!");
+        } else {
+          toast.warning(result.message || "Import completed with warnings");
+        }
+      } else {
+        toast.success(result || "Vendors imported successfully!");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to import vendors");
     } finally {
       setIsImportingVendors(false);
     }

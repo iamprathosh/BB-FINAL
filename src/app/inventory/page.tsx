@@ -106,7 +106,7 @@ export default function InventoryPage() {
   const [isBulkReturnDialogOpen, setIsBulkReturnDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedCategoryName, setSelectedCategoryName] = useState<string>("all");
   const [selectedView, setSelectedView] = useState<string>("all"); // 'all', 'by-project'
   
   // Admin functionality states
@@ -147,7 +147,18 @@ export default function InventoryPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
-  const products = useQuery(api.products.listProducts);
+  // FIX: Use server-side filtering instead of client-side
+  // Get selected category ID from name
+  const selectedCategoryId = useMemo(() => {
+    if (selectedCategoryName === "all" || !categories) return undefined;
+    const category = categories.find(c => c.name === selectedCategoryName);
+    return category?._id;
+  }, [selectedCategoryName, categories]);
+  
+  // Use the new filtered products query with server-side filtering
+  const products = useQuery(api.products.getFilteredProducts, {
+    categoryId: selectedCategoryId,
+  });
   const projects = useQuery(api.projects.getActiveProjects);
   const allProjects = useQuery(api.projects.listProjects);
   const inventoryTransactions = useQuery(api.analytics.getDashboardAnalytics);
@@ -170,9 +181,8 @@ export default function InventoryPage() {
   const productCategories = products ? [...new Set(products.map(p => p.category))] : [];
   const combinedCategories = [...new Set([...allCategories, ...productCategories])];
   
-  const filteredProducts = products?.filter(product => 
-    selectedCategory === "all" || product.category === selectedCategory
-  );
+  // FIX: No longer need client-side filtering as it's done on the server
+  const filteredProducts = products;
   
   // Check if current user is admin
   const isAdmin = currentUser?.role === 'admin';
@@ -562,7 +572,7 @@ export default function InventoryPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Filter className="h-4 w-4 text-muted-foreground" />
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <Select value={selectedCategoryName} onValueChange={setSelectedCategoryName}>
               <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Filter by category" />
               </SelectTrigger>
@@ -1541,7 +1551,7 @@ function VendorsList({ productId }: { productId: Id<"products"> }) {
             <p className="font-medium text-foreground">{vendor?.name}</p>
             <p className="text-sm text-muted-foreground">{vendor?.email}</p>
           </div>
-          <p className="text-sm font-semibold text-green-600 dark:text-green-400">${vendor?.price?.toFixed(2)}</p>
+          <p className="text-sm font-semibold text-green-600 dark:text-green-400">${vendor?.vendorPrice?.toFixed(2)}</p>
         </li>
       ))}
     </ul>

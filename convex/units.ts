@@ -7,7 +7,6 @@ export const listUnits = query({
   handler: async (ctx) => {
     return await ctx.db
       .query("unitsOfMeasure")
-      .withIndex("by_active", (q) => q.eq("isActive", true))
       .collect();
   },
 });
@@ -16,11 +15,10 @@ export const listUnits = query({
 export const listUnitsByType = query({
   args: { type: v.string() },
   handler: async (ctx, args) => {
+    // Since we don't have type field anymore, return all units
     return await ctx.db
       .query("unitsOfMeasure")
-      .withIndex("by_type", (q) => q.eq("type", args.type))
-      .collect()
-      .then(units => units.filter(unit => unit.isActive === true));
+      .collect();
   },
 });
 
@@ -36,7 +34,6 @@ export const addUnit = mutation({
   args: {
     name: v.string(),
     abbreviation: v.string(),
-    type: v.string(),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -53,10 +50,6 @@ export const addUnit = mutation({
     const unitId = await ctx.db.insert("unitsOfMeasure", {
       name: args.name,
       abbreviation: args.abbreviation,
-      type: args.type,
-      isActive: true,
-      createdBy: user._id,
-      createdAt: Date.now(),
     });
 
     return unitId;
@@ -69,8 +62,6 @@ export const updateUnit = mutation({
     id: v.id("unitsOfMeasure"),
     name: v.string(),
     abbreviation: v.string(),
-    type: v.string(),
-    isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -87,8 +78,6 @@ export const updateUnit = mutation({
     await ctx.db.patch(args.id, {
       name: args.name,
       abbreviation: args.abbreviation,
-      type: args.type,
-      isActive: args.isActive,
     });
 
     return args.id;
@@ -146,10 +135,8 @@ export const initializeDefaultUnits = mutation({
     if (existingUnits.length === 0) {
       for (const unit of defaultUnits) {
         await ctx.db.insert("unitsOfMeasure", {
-          ...unit,
-          isActive: true,
-          createdBy: user._id,
-          createdAt: Date.now(),
+          name: unit.name,
+          abbreviation: unit.abbreviation,
         });
       }
     }

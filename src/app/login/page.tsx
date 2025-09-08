@@ -8,8 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useAuthActions, useCurrentUser } from "@/contexts/AuthContext";
-import { useMutation } from "convex/react";
-import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
 
 export default function LoginPage() {
@@ -21,7 +19,6 @@ export default function LoginPage() {
   
   const { signIn } = useAuthActions();
   const currentUser = useCurrentUser();
-  const storeUser = useMutation(api.users.store);
   const router = useRouter();
   
   const isAuthenticated = !!currentUser;
@@ -47,25 +44,51 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
 
+    if (isSignUp && password.length < 8) {
+      toast.error("Password must be at least 8 characters long");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       if (isSignUp) {
-        // Sign up new user - use signIn method with name parameter
-        await signIn("password", { email, password, name });
-        // After successful signup, store the user in our users table
-        await storeUser({ name, email });
+        // Sign up new user - include required flow param
+        const fd = new FormData();
+        fd.set("flow", "signUp");
+        fd.set("email", email);
+        fd.set("password", password);
+        fd.set("name", name);
+        console.log("Submitting auth params (signup)", Object.fromEntries(fd.entries()));
+        await signIn("password", fd);
+        
         toast.success("Account created successfully!");
         router.push("/");
       } else {
-        // Sign in existing user
-        await signIn("password", { email, password });
+        // Sign in existing user - include required flow param
+        const fd = new FormData();
+        fd.set("flow", "signIn");
+        fd.set("email", email);
+        fd.set("password", password);
+        console.log("Submitting auth params (signin)", Object.fromEntries(fd.entries()));
+        await signIn("password", fd);
+        
         toast.success("Logged in successfully!");
-        // Store user in our users table if not already there
-        await storeUser({ name: email.split('@')[0], email });
         router.push("/");
       }
     } catch (error: any) {
       console.error("Auth error:", error);
-      toast.error(error?.message || (isSignUp ? "Failed to create account" : "Login failed"));
+      // Provide more specific error messages based on the error received
+      if (error.message?.includes("Incorrect password") || error.message?.includes("Invalid password")) {
+        toast.error("Incorrect password. Please try again.");
+      } else if (error.message?.includes("User not found") || error.message?.includes("No user found")) {
+        toast.error("No account found with that email.");
+      } else if (error.message?.includes("User already exists") || error.message?.includes("already registered")) {
+        toast.error("An account with this email already exists. Please sign in instead.");
+      } else if (error.message?.includes("Invalid email")) {
+        toast.error("Please enter a valid email address.");
+      } else {
+        toast.error(error?.message || (isSignUp ? "Failed to create account" : "An unexpected error occurred."));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -134,6 +157,7 @@ export default function LoginPage() {
                 disabled={isLoading}
                 className="h-10"
                 placeholder="Enter your password"
+                minLength={isSignUp ? 8 : undefined}
               />
             </div>
 

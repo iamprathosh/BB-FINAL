@@ -1,0 +1,54 @@
+Item No,Product Name,Category,UOM,Vendor #,Vendor Name
+LUM 001,CDX Plywood 1/2 in,Lumber,Sheet,1033,"Nyack Lumber, Inc"
+LUM 002,CDX Plywood 5/8 in,Lumber,Sheet,1033,"Nyack Lumber, Inc"
+LUM 003,2x4 – 16 Ft,Lumber,Each,1033,"Nyack Lumber, Inc"
+LUM 004,2x6 – 16 Ft,Lumber,Each,1033,"Nyack Lumber, Inc"
+LUM 005,2x12 – 16 Ft,Lumber,Each,1033,"Nyack Lumber, Inc"
+REI 001,Rebar Chair 3 in,Reinforcement,Pallet,1011,Grade Industrial Supply
+REI 002,Rebar Chair 4 in,Reinforcement,Pallet,1011,Grade Industrial Supply
+REI 003,Wire Mesh 4x4,Reinforcement,Sheet,1011,Grade Industrial Supply
+REI 004,Wire Mesh 6x6,Reinforcement,Sheet,1011,Grade Industrial Supply
+REI 005,#3 Rebar - 20 ft,Reinforcement,Each,1011,Grade Industrial Supply
+REI 006,#4 Rebar - 20 ft,Reinforcement,Each,1011,Grade Industrial Supply
+REI 007,#5 Rebar - 20 ft,Reinforcement,Each,1011,Grade Industrial Supply
+REI 008,#6 Rebar - 20 ft,Reinforcement,Each,1011,Grade Industrial Supply
+REI 009,#7 Rebar - 20 ft,Reinforcement,Each,1011,Grade Industrial Supply
+REI 010,#8 Rebar - 20 ft,Reinforcement,Each,1011,Grade Industrial Supply
+REI 011,Coil Tie Wire 16 Gauge,Reinforcement,Box,1021,White Cap
+REI 012,Loop Ties,Reinforcement,Bag,1021,White Cap
+REI 013,MAX Tie Wire TW1061T,Reinforcement,Box,1021,White Cap
+CBA 001,Concrete Cutting Blade,Cutting Blades & Acc.,Each,1021,White Cap
+CBA 002,Demo Saw Blade 14 in - 20 mm,Cutting Blades & Acc.,Each,1021,White Cap
+CBA 003,Circular Saw Blade 7 1/4 in,Cutting Blades & Acc.,Each,1021,White Cap
+DRI 001,SDS Plus Drill Bit 3/16 in - Concrete,Drill Bits,Each,1021,White Cap
+DRI 002,SDS Plus Drill Bit 5/16 in - Concrete,Drill Bits,Each,1021,White Cap
+GEN 001,String Line,General Items,Roll,1021,White Cap
+GEN 002,9 in Roller,General Items,Each,1021,White Cap
+GEN 003,Sponge,General Items,Each,1021,White Cap
+GEN 004,Vapor Barrier,General Items,Roll,1021,White Cap
+GEN 005,Stego Tape,General Items,Roll,1021,White Cap
+GEN 006,Garbage Bag,General Items,Box,1021,White Cap
+GEN 007,Water,General Items,Case,1021,White Cap
+GEN 008,String Line Chalk,General Items,Each,1021,White Cap
+SAF 001,Safety Mask,Safety Equipment & PPE,Box,1021,White Cap
+SAF 002,Safety Glass,Safety Equipment & PPE,Box,1021,White Cap
+SAF 003,Rebar Caps,Safety Equipment & PPE,Box,1021,White Cap
+SAF 004,Eye Wash Solution,Safety Equipment & PPE,Each,1021,White Cap
+SAF 005,Gloves,Safety Equipment & PPE,Box,1021,White Cap
+SAF 006,Safety Vest,Safety Equipment & PPE,Each,1021,White Cap
+EPO 001,Hilti HY200 Anchoring Epoxy,Epoxy,Each,1000,Internal Order
+EPO 002,Dewalt Anchoring Epoxy,Epoxy,Each,1021,White Cap
+EQU 001,Echo 2-Stroke Oil,Equipment Maintenance,Each,1000,Internal Order
+EQU 002,Husqvarna 2-Stroke Oil,Equipment Maintenance,Each,1000,Internal Order
+EQU 003,Stihl Demo Saw Filter,Equipment Maintenance,Each,1000,Internal Order
+EQU 004,Husqvarna Demo Saw Filter,Equipment Maintenance,Each,1000,Internal Order
+EQU 005,Spark Plug,Equipment Maintenance,Each,1000,Internal Order
+EQU 006,WD-40,Equipment Maintenance,Each,1000,Internal Order
+EQU 007,PB Blaster Penetrating Oil,Equipment Maintenance,Each,1000,Internal Order
+EQU 008,White Lithium Grease,Equipment Maintenance,Each,1000,Internal Order
+EQU 009,Ridgid Vacuum Filters,Equipment Maintenance,Each,1021,White Cap
+FAS 001,Concrete Nails,Fasterners,Box,1021,White Cap
+FAS 002,16D Duplex Nail,Fasterners,Box,1021,White Cap
+FAS 003,16D Common Nail,Fasterners,Box,1021,White Cap
+FAS 004,8D Common Nail,Fasterners,Box,1021,White Cap
+FAS 005,Milwaukee Nail Gun Duplex Nails,Fasterners,Box,1021,White Cap

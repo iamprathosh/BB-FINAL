@@ -7,7 +7,6 @@ export const listCategories = query({
   handler: async (ctx) => {
     return await ctx.db
       .query("categories")
-      .withIndex("by_active", (q) => q.eq("isActive", true))
       .collect();
   },
 });
@@ -24,7 +23,6 @@ export const addCategory = mutation({
   args: {
     name: v.string(),
     description: v.optional(v.string()),
-    icon: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -32,8 +30,8 @@ export const addCategory = mutation({
 
     // Get current user
     const user = await ctx.db
-      .query("users")
-      .withIndex("by_auth_id", (q) => q.eq("authId", userId))
+      .query("appUsers")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", userId))
       .unique();
 
     if (!user) throw new Error("User not found");
@@ -44,10 +42,6 @@ export const addCategory = mutation({
     const categoryId = await ctx.db.insert("categories", {
       name: args.name,
       description: args.description,
-      icon: args.icon,
-      isActive: true,
-      createdBy: user._id,
-      createdAt: Date.now(),
     });
 
     return categoryId;
@@ -60,8 +54,6 @@ export const updateCategory = mutation({
     id: v.id("categories"),
     name: v.string(),
     description: v.optional(v.string()),
-    icon: v.optional(v.string()),
-    isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -69,8 +61,8 @@ export const updateCategory = mutation({
 
     // Get current user
     const user = await ctx.db
-      .query("users")
-      .withIndex("by_auth_id", (q) => q.eq("authId", userId))
+      .query("appUsers")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", userId))
       .unique();
 
     if (!user) throw new Error("User not found");
@@ -78,8 +70,6 @@ export const updateCategory = mutation({
     await ctx.db.patch(args.id, {
       name: args.name,
       description: args.description,
-      icon: args.icon,
-      isActive: args.isActive,
     });
 
     return args.id;
@@ -95,8 +85,8 @@ export const deleteCategory = mutation({
 
     // Get current user
     const user = await ctx.db
-      .query("users")
-      .withIndex("by_auth_id", (q) => q.eq("authId", userId))
+      .query("appUsers")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", userId))
       .unique();
 
     if (!user) throw new Error("User not found");

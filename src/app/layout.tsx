@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
+import { AuthUserSetup } from "@/components/auth/AuthUserSetup";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -36,6 +37,7 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <AuthProvider>
+            <AuthUserSetup />
             {children}
             <Toaster />
           </AuthProvider>

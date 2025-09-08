@@ -20,7 +20,7 @@ export const getActiveProjects = query({
   handler: async (ctx) => {
     const projects = await ctx.db
       .query("projects")
-      .withIndex("by_status", (q) => q.eq("status", "active"))
+      .withIndex("by_status", (q) => q.eq("status", "In Progress"))
       .order("desc")
       .collect();
     return projects;
@@ -52,8 +52,8 @@ export const createProject = mutation({
 
     // Get current user
     const user = await ctx.db
-      .query("users")
-      .withIndex("by_auth_id", (q) => q.eq("authId", userId))
+      .query("appUsers")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", userId))
       .unique();
 
     if (!user) {
@@ -66,9 +66,8 @@ export const createProject = mutation({
       description: args.description,
       startDate: args.startDate,
       endDate: args.endDate,
-      status: args.status,
-      budget: args.budget,
-      manager: user._id,
+      status: args.status as "Planning" | "In Progress" | "On Hold" | "Completed" | "Cancelled",
+      managerId: user._id,
     });
 
     // Log the action
@@ -101,8 +100,8 @@ export const updateProject = mutation({
 
     // Get current user
     const user = await ctx.db
-      .query("users")
-      .withIndex("by_auth_id", (q) => q.eq("authId", userId))
+      .query("appUsers")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", userId))
       .unique();
 
     if (!user) {
@@ -115,8 +114,7 @@ export const updateProject = mutation({
       description: args.description,
       startDate: args.startDate,
       endDate: args.endDate,
-      status: args.status,
-      budget: args.budget,
+      status: args.status as "Planning" | "In Progress" | "On Hold" | "Completed" | "Cancelled" | undefined,
     });
 
     // Log the action
@@ -141,8 +139,8 @@ export const deleteProject = mutation({
 
     // Get current user
     const user = await ctx.db
-      .query("users")
-      .withIndex("by_auth_id", (q) => q.eq("authId", userId))
+      .query("appUsers")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", userId))
       .unique();
 
     if (!user) {
@@ -185,7 +183,7 @@ export const getProjectAnalytics = query({
 
     // Calculate total inventory costs
     const totalInventoryCost = transactions.reduce((sum, transaction) => {
-      return sum + (Math.abs(transaction.quantity) * transaction.unitPrice);
+      return sum + (Math.abs(transaction.quantityChange) * transaction.unitCostAtTransaction);
     }, 0);
 
     // Get transactions by user (filter out transactions without userId)
@@ -210,16 +208,16 @@ export const getProjectAnalytics = query({
         if (!user) return null; // Handle null users
         const userTransactions = transactionsByUser[userIds[index]];
         const totalValue = userTransactions.reduce((sum, t) => 
-          sum + (Math.abs(t.quantity) * t.unitPrice), 0
+          sum + (Math.abs(t.quantityChange) * t.unitCostAtTransaction), 0
         );
         return {
-          user: user as Doc<"users">,
+          user: user as Doc<"appUsers">,
           transactions: userTransactions,
           totalValue,
           transactionCount: userTransactions.length,
         };
       })
-      .filter((activity): activity is { user: Doc<"users">; transactions: Doc<"inventoryTransactions">[]; totalValue: number; transactionCount: number } => activity !== null);
+      .filter((activity): activity is { user: Doc<"appUsers">; transactions: Doc<"inventoryTransactions">[]; totalValue: number; transactionCount: number } => activity !== null);
 
     // Calculate consumption by time frame
     const now = Date.now();
@@ -247,17 +245,17 @@ export const getProjectAnalytics = query({
     const consumptionData = {
       thisWeek: {
         transactions: thisWeek,
-        totalValue: thisWeek.reduce((sum, t) => sum + (Math.abs(t.quantity) * t.unitPrice), 0),
+        totalValue: thisWeek.reduce((sum, t) => sum + (Math.abs(t.quantityChange) * t.unitCostAtTransaction), 0),
         count: thisWeek.length,
       },
       lastWeek: {
         transactions: lastWeek,
-        totalValue: lastWeek.reduce((sum, t) => sum + (Math.abs(t.quantity) * t.unitPrice), 0),
+        totalValue: lastWeek.reduce((sum, t) => sum + (Math.abs(t.quantityChange) * t.unitCostAtTransaction), 0),
         count: lastWeek.length,
       },
       thisMonth: {
         transactions: enrichedThisMonthTransactions,
-        totalValue: thisMonth.reduce((sum, t) => sum + (Math.abs(t.quantity) * t.unitPrice), 0),
+        totalValue: thisMonth.reduce((sum, t) => sum + (Math.abs(t.quantityChange) * t.unitCostAtTransaction), 0),
         count: thisMonth.length,
       },
     };

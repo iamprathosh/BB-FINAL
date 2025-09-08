@@ -54,7 +54,7 @@ interface Project {
   endDate?: number;
   status: string;
   budget?: number;
-  manager: Id<"users">;
+  manager: Id<"appUsers">;
   _creationTime: number;
 }
 

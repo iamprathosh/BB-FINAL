@@ -5,18 +5,14 @@ import { Doc, Id } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
 /**
- * MAUC (Moving Average Unit Cost) Calculation Logic
+ * Simplified inventory management without MAUC fields
  * 
- * Formula: MAUC = Total Cost of Stock on Hand / Total Units on Hand
- * 
- * When receiving new inventory:
- * 1. Calculate new total cost = existing total cost + (new quantity × new unit cost)
- * 2. Calculate new total units = existing units + new quantity
- * 3. Calculate new MAUC = new total cost / new total units
- * 4. Update product with new MAUC and totals
+ * Since the new schema only has quantity and price fields,
+ * we'll use price as the current unit cost and update it
+ * using weighted average when receiving inventory.
  */
 
-export const calculateMAUC = internalMutation({
+export const calculateWeightedAverage = internalMutation({
   args: {
     productId: v.id("products"),
     newQuantity: v.number(),
@@ -29,95 +25,63 @@ export const calculateMAUC = internalMutation({
       throw new Error("Product not found");
     }
 
-    let newTotalUnits: number;
-    let newTotalCost: number;
-    let newMAUC: number;
+    let newQuantity: number;
+    let newPrice: number; // This will be our weighted average unit cost
 
-    // Handle optional fields with fallbacks
-    const currentTotalUnits = product.totalUnitsInStock ?? product.quantity;
-    const currentTotalCost = product.totalCostInStock ?? (product.quantity * (product.costPrice || product.price || 0));
-    const currentMAUC = product.movingAverageCost ?? (product.costPrice || product.price || 0);
-    
     if (args.transactionType === "receive" || args.transactionType === "return") {
-      // Adding inventory - calculate new MAUC
-      newTotalUnits = currentTotalUnits + args.newQuantity;
-      newTotalCost = currentTotalCost + (args.newQuantity * args.newUnitCost);
+      // Calculate weighted average when receiving inventory
+      const currentValue = product.quantity * product.price;
+      const newValue = args.newQuantity * args.newUnitCost;
+      const totalValue = currentValue + newValue;
       
-      if (newTotalUnits <= 0) {
-        // If total units becomes 0 or negative, reset everything to 0
-        newTotalUnits = 0;
-        newTotalCost = 0;
-        newMAUC = 0;
-      } else {
-        newMAUC = newTotalCost / newTotalUnits;
-      }
-    } else if (args.transactionType === "pull" || args.transactionType === "sale") {
-      // Removing inventory - use current MAUC, reduce totals
-      if (args.newQuantity > currentTotalUnits) {
+      newQuantity = product.quantity + args.newQuantity;
+      newPrice = newQuantity > 0 ? totalValue / newQuantity : args.newUnitCost;
+      
+    } else if (args.transactionType === "pull") {
+      // When pulling inventory, quantity decreases but price stays same
+      if (args.newQuantity > product.quantity) {
         throw new Error("Cannot remove more inventory than available");
       }
+      newQuantity = product.quantity - Math.abs(args.newQuantity);
+      newPrice = product.price; // Price remains the same
       
-      newTotalUnits = currentTotalUnits - Math.abs(args.newQuantity);
-      newTotalCost = currentTotalCost - (Math.abs(args.newQuantity) * currentMAUC);
-      
-      if (newTotalUnits <= 0) {
-        newTotalUnits = 0;
-        newTotalCost = 0;
-        newMAUC = 0;
-      } else {
-        newMAUC = currentMAUC; // MAUC doesn't change when removing inventory
-      }
-    } else if (args.transactionType === "adjust") {
-      // Inventory adjustment - could be positive or negative
-      newTotalUnits = currentTotalUnits + args.newQuantity;
-      
+    } else if (args.transactionType === "adjustment") {
+      // Inventory adjustment
+      newQuantity = product.quantity + args.newQuantity;
       if (args.newQuantity > 0) {
-        // Positive adjustment - treat like receiving
-        newTotalCost = currentTotalCost + (args.newQuantity * args.newUnitCost);
+        // Positive adjustment - calculate weighted average
+        const currentValue = product.quantity * product.price;
+        const adjustValue = args.newQuantity * args.newUnitCost;
+        const totalValue = currentValue + adjustValue;
+        newPrice = newQuantity > 0 ? totalValue / newQuantity : args.newUnitCost;
       } else {
-        // Negative adjustment - treat like pulling
-        newTotalCost = currentTotalCost + (args.newQuantity * currentMAUC);
-      }
-      
-      if (newTotalUnits <= 0) {
-        newTotalUnits = 0;
-        newTotalCost = 0;
-        newMAUC = 0;
-      } else {
-        newMAUC = newTotalCost / newTotalUnits;
+        // Negative adjustment - price stays the same
+        newPrice = product.price;
       }
     } else {
       throw new Error(`Unsupported transaction type: ${args.transactionType}`);
     }
 
-    // Update the product with new MAUC values
+    // Update the product
     await ctx.db.patch(args.productId, {
-      quantity: newTotalUnits, // Keep quantity in sync with totalUnitsInStock
-      totalUnitsInStock: newTotalUnits,
-      totalCostInStock: Math.max(0, newTotalCost), // Ensure non-negative
-      movingAverageCost: newMAUC,
-      lastPurchasePrice: args.transactionType === "receive" ? args.newUnitCost : product.lastPurchasePrice,
-      lastPurchaseDate: args.transactionType === "receive" ? Date.now() : product.lastPurchaseDate,
+      quantity: Math.max(0, newQuantity),
+      price: newPrice,
     });
 
     return {
-      oldMAUC: product.movingAverageCost ?? 0,
-      newMAUC: newMAUC,
-      oldTotalCost: product.totalCostInStock ?? 0,
-      newTotalCost: newTotalCost,
-      oldTotalUnits: product.totalUnitsInStock ?? 0,
-      newTotalUnits: newTotalUnits,
+      oldQuantity: product.quantity,
+      newQuantity: Math.max(0, newQuantity),
+      oldPrice: product.price,
+      newPrice: newPrice,
     };
   },
 });
 
-interface MAUCResult {
-  oldMAUC: number;
-  newMAUC: number;
-  oldTotalCost: number;
-  newTotalCost: number;
-  oldTotalUnits: number;
-  newTotalUnits: number;
+interface WeightedAverageResult {
+  oldQuantity: number;
+  newQuantity: number;
+  oldPrice: number;
+  newPrice: number;
 }
 
 export const receiveInventory = mutation({
@@ -125,10 +89,7 @@ export const receiveInventory = mutation({
     productId: v.id("products"),
     quantity: v.number(),
     unitCost: v.number(),
-    vendorId: v.optional(v.id("vendors")),
     projectId: v.optional(v.id("projects")),
-    reference: v.optional(v.string()),
-    deliveryReceiptNumber: v.optional(v.string()),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<Id<"inventoryTransactions">> => {
@@ -138,8 +99,8 @@ export const receiveInventory = mutation({
     }
 
     const user = await ctx.db
-      .query("users")
-      .withIndex("by_auth_id", (q) => q.eq("authId", userId))
+      .query("appUsers")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", userId))
       .unique();
 
     if (!user) {
@@ -151,24 +112,12 @@ export const receiveInventory = mutation({
       throw new Error("Product not found");
     }
 
-    // Calculate new MAUC directly (instead of using scheduler)
-    const currentMAUC = product.movingAverageCost ?? product.costPrice ?? 0;
-    const totalCostInStock = product.totalCostInStock ?? (currentMAUC * product.quantity);
-    const totalUnitsInStock = product.totalUnitsInStock ?? product.quantity;
-    
-    const newPurchaseValue = args.quantity * args.unitCost;
-    const newTotalCostInStock = totalCostInStock + newPurchaseValue;
-    const newTotalUnitsInStock = totalUnitsInStock + args.quantity;
-    const newMAUC = newTotalUnitsInStock > 0 ? newTotalCostInStock / newTotalUnitsInStock : 0;
-
-    // Update product with new quantity and MAUC values
-    await ctx.db.patch(args.productId, {
-      quantity: product.quantity + args.quantity,
-      movingAverageCost: newMAUC,
-      totalCostInStock: newTotalCostInStock,
-      totalUnitsInStock: newTotalUnitsInStock,
-      lastPurchasePrice: args.unitCost,
-      lastPurchaseDate: Date.now(),
+    // Update inventory using weighted average
+    const result = await ctx.runMutation(internal.mauc.calculateWeightedAverage, {
+      productId: args.productId,
+      newQuantity: args.quantity,
+      newUnitCost: args.unitCost,
+      transactionType: "receive"
     });
 
     // Create transaction record
@@ -176,24 +125,19 @@ export const receiveInventory = mutation({
       productId: args.productId,
       projectId: args.projectId,
       type: "receive",
-      quantity: args.quantity,
-      unitPrice: args.unitCost,
-      maucAtTimeOfTransaction: currentMAUC,
-      totalCostImpact: newPurchaseValue,
-      newMaucAfterTransaction: newMAUC,
+      quantityChange: args.quantity,
+      unitCostAtTransaction: args.unitCost,
       date: Date.now(),
-      reference: args.reference,
       userId: user._id,
       notes: args.notes,
-      vendorId: args.vendorId,
-      deliveryReceiptNumber: args.deliveryReceiptNumber,
     });
 
     // Log the action
+    const unit = await ctx.db.get(product.unitOfMeasureId);
     await ctx.scheduler.runAfter(0, internal.logs.add, {
       userId: user._id,
       action: "Inventory Received",
-      details: `Received ${args.quantity} ${product.unitOfMeasure || 'units'} of ${product.name} at $${args.unitCost.toFixed(2)} per unit. New MAUC: $${newMAUC.toFixed(2)}`,
+      details: `Received ${args.quantity} ${unit?.abbreviation || 'units'} of ${product.name} at $${args.unitCost.toFixed(2)} per unit. New average cost: $${result.newPrice.toFixed(2)}`,
       projectId: args.projectId,
     });
 
@@ -201,7 +145,7 @@ export const receiveInventory = mutation({
   },
 });
 
-export const getMAUCHistory = query({
+export const getPriceHistory = query({
   args: {
     productId: v.id("products"),
     limit: v.optional(v.number()),
@@ -214,21 +158,19 @@ export const getMAUCHistory = query({
       .withIndex("by_product", (q) => q.eq("productId", args.productId))
       .filter((q) => q.or(
         q.eq(q.field("type"), "receive"),
-        q.eq(q.field("type"), "adjust")
+        q.eq(q.field("type"), "adjustment")
       ))
       .order("desc")
       .take(limit);
 
-    // Enrich with vendor information
+    // Enrich with user and project information
     const enrichedTransactions = await Promise.all(
       transactions.map(async (transaction) => {
-        const vendor = transaction.vendorId ? await ctx.db.get(transaction.vendorId) : null;
         const user = transaction.userId ? await ctx.db.get(transaction.userId) : null;
         const project = transaction.projectId ? await ctx.db.get(transaction.projectId) : null;
         
         return {
           ...transaction,
-          vendor,
           user,
           project,
         };
@@ -239,7 +181,7 @@ export const getMAUCHistory = query({
   },
 });
 
-export const getProductMAUCAnalytics = query({
+export const getProductAnalytics = query({
   args: { productId: v.id("products") },
   handler: async (ctx, args) => {
     const product = await ctx.db.get(args.productId);
@@ -255,27 +197,20 @@ export const getProductMAUCAnalytics = query({
       .order("desc")
       .collect();
 
-    // Calculate price variance statistics
-    const prices = receiveTransactions.map(t => t.unitPrice);
+    // Calculate price variance statistics from transaction costs
+    const prices = receiveTransactions.map(t => t.unitCostAtTransaction);
     const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
     const maxPrice = prices.length > 0 ? Math.max(...prices) : 0;
     const avgPrice = prices.length > 0 ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
     
-    // Calculate current inventory value at MAUC vs market price  
-    const totalUnits = product.totalUnitsInStock ?? 0;
-    const mauc = product.movingAverageCost ?? 0;
-    const inventoryValueAtMAUC = totalUnits * mauc;
-    const inventoryValueAtMarket = totalUnits * product.price;
-    const potentialProfit = inventoryValueAtMarket - inventoryValueAtMAUC;
-    const marginPercentage = inventoryValueAtMAUC > 0 ? (potentialProfit / inventoryValueAtMAUC) * 100 : 0;
+    // Calculate current inventory value
+    const inventoryValue = product.quantity * product.price;
 
     return {
       product,
-      currentMAUC: product.movingAverageCost,
-      totalUnitsInStock: product.totalUnitsInStock,
-      totalCostInStock: product.totalCostInStock,
-      lastPurchasePrice: product.lastPurchasePrice || 0,
-      lastPurchaseDate: product.lastPurchaseDate,
+      currentPrice: product.price,
+      totalQuantity: product.quantity,
+      inventoryValue: inventoryValue,
       
       priceStatistics: {
         minPrice,
@@ -285,24 +220,17 @@ export const getProductMAUCAnalytics = query({
         priceVariancePercent: minPrice > 0 ? ((maxPrice - minPrice) / minPrice) * 100 : 0,
       },
       
-      valuationAnalysis: {
-        inventoryValueAtMAUC,
-        inventoryValueAtMarket,
-        potentialProfit,
-        marginPercentage,
-      },
-      
       totalReceiveTransactions: receiveTransactions.length,
       recentTransactions: receiveTransactions.slice(0, 5),
     };
   },
 });
 
-// Utility function to initialize MAUC for existing products
-export const initializeMAUCForProduct = mutation({
+// Utility function to initialize price for existing products
+export const initializePriceForProduct = mutation({
   args: {
     productId: v.id("products"),
-    initialUnitCost: v.optional(v.number()),
+    initialPrice: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const product = await ctx.db.get(args.productId);
@@ -310,22 +238,18 @@ export const initializeMAUCForProduct = mutation({
       throw new Error("Product not found");
     }
 
-    // Use provided initial cost, or costPrice, or price as fallback
-    const initialCost = args.initialUnitCost || product.costPrice || product.price;
+    // Use provided initial price, or current price as fallback
+    const initialPrice = args.initialPrice || product.price;
     
     await ctx.db.patch(args.productId, {
-      movingAverageCost: initialCost,
-      totalCostInStock: product.quantity * initialCost,
-      totalUnitsInStock: product.quantity,
-      lastPurchasePrice: initialCost,
-      lastPurchaseDate: Date.now(),
+      price: initialPrice,
     });
 
     return {
       productId: args.productId,
-      initializedMAUC: initialCost,
-      totalCostInStock: product.quantity * initialCost,
-      totalUnitsInStock: product.quantity,
+      initializedPrice: initialPrice,
+      currentQuantity: product.quantity,
+      inventoryValue: product.quantity * initialPrice,
     };
   },
 });

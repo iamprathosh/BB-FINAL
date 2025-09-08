@@ -4,7 +4,6 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 export const createSampleData = mutation({
   args: {},
   handler: async (ctx) => {
-    // Get current user for transactions
     const userId = await getAuthUserId(ctx);
     if (!userId) {
       throw new Error("Not authenticated");
@@ -22,264 +21,205 @@ export const createSampleData = mutation({
     // Check if we already have sample data
     const existingProducts = await ctx.db.query("products").collect();
     if (existingProducts.length > 0) {
-      return "Sample data already exists";
+      return "Sample data already exists. Please clear data first.";
     }
 
-    // Create sample purchase orders
-    const samplePOs = [
-      {
-        poNumber: "PO-001",
-        supplier: "Tech Supplies Inc",
-        status: "pending",
-        orderDate: Date.now() - (5 * 24 * 60 * 60 * 1000), // 5 days ago
-        expectedDate: Date.now() + (7 * 24 * 60 * 60 * 1000), // 7 days from now
-        totalAmount: 2500.00,
-        items: []
-      },
-      {
-        poNumber: "PO-002", 
-        supplier: "Office Depot",
-        status: "pending",
-        orderDate: Date.now() - (3 * 24 * 60 * 60 * 1000),
-        expectedDate: Date.now() + (5 * 24 * 60 * 60 * 1000),
-        totalAmount: 1200.00,
-        items: []
-      },
-      {
-        poNumber: "PO-003",
-        supplier: "Manufacturing Ltd",
-        status: "received",
-        orderDate: Date.now() - (15 * 24 * 60 * 60 * 1000),
-        totalAmount: 3400.00,
-        items: []
-      }
+    // Create categories first
+    const categories = [
+      { name: "Cement & Concrete", description: "Cement, concrete mix, additives" },
+      { name: "Steel & Rebar", description: "Rebar, steel bars, mesh" },
+      { name: "Blocks & Bricks", description: "Concrete blocks, clay bricks" },
+      { name: "Sand & Gravel", description: "Construction sand, gravel, aggregates" },
+      { name: "Electrical", description: "Wires, conduits, electrical components" },
+      { name: "Plumbing", description: "Pipes, fittings, plumbing supplies" },
+      { name: "Hardware", description: "Bolts, screws, fasteners" },
+      { name: "Tools & Equipment", description: "Hand tools, power tools, equipment" },
+      { name: "Lumber & Wood", description: "Timber, plywood, wood products" },
     ];
 
-    // Create sample products first
+    const createdCategories = [];
+    for (const category of categories) {
+      const categoryId = await ctx.db.insert("categories", {
+        name: category.name,
+        description: category.description,
+      });
+      createdCategories.push({ id: categoryId, name: category.name });
+    }
+
+    // Create units of measure
+    const units = [
+      { name: "Bag", abbreviation: "bag" },
+      { name: "Piece", abbreviation: "pcs" },
+      { name: "Cubic Meter", abbreviation: "m³" },
+      { name: "Meter", abbreviation: "m" },
+    ];
+
+    const createdUnits = [];
+    for (const unit of units) {
+      const unitId = await ctx.db.insert("unitsOfMeasure", {
+        name: unit.name,
+        abbreviation: unit.abbreviation,
+      });
+      createdUnits.push({ id: unitId, name: unit.name, abbreviation: unit.abbreviation });
+    }
+
+    // Create category and unit maps
+    const categoryMap = new Map(createdCategories.map(c => [c.name, c.id]));
+    const unitMap = new Map(createdUnits.map(u => [u.abbreviation, u.id]));
+
+    // Create sample products
     const sampleProducts = [
       {
-        name: "Wireless Headphones",
-        sku: "WH-001",
-        quantity: 45,
-        price: 79.99,
-        category: "Electronics",
-        costPrice: 45.00,
-        reorderLevel: 15,
-        supplier: "Tech Supplies Inc"
+        name: "Portland Cement",
+        sku: "CEM-001",
+        quantity: 50,
+        price: 10.00,
+        category: "Cement & Concrete",
+        unitAbbr: "bag",
+        description: "Premium Portland cement for construction"
       },
       {
-        name: "Office Chair",
-        sku: "OC-002", 
-        quantity: 8,
-        price: 199.99,
-        category: "Furniture",
-        costPrice: 120.00,
-        reorderLevel: 10,
-        supplier: "Office Depot"
+        name: "Ready Mix Concrete", 
+        sku: "CEM-002",
+        quantity: 25,
+        price: 95.00,
+        category: "Cement & Concrete",
+        unitAbbr: "m³",
+        description: "Ready-to-use concrete mix"
       },
       {
-        name: "Laptop Stand",
-        sku: "LS-003",
-        quantity: 23,
-        price: 49.99,
-        category: "Accessories",
-        costPrice: 28.00,
-        reorderLevel: 20,
-        supplier: "Tech Supplies Inc"
+        name: "Rebar 10mm x 6m",
+        sku: "RB-001", 
+        quantity: 200,
+        price: 14.50,
+        category: "Steel & Rebar",
+        unitAbbr: "pcs",
+        description: "Steel reinforcement bars"
       },
       {
-        name: "Desk Lamp",
-        sku: "DL-004",
-        quantity: 5,
-        price: 34.99,
-        category: "Electronics",
-        costPrice: 18.00,
-        reorderLevel: 12,
-        supplier: "Office Depot"
+        name: "Concrete Blocks 8\"",
+        sku: "BLK-001",
+        quantity: 500,
+        price: 1.80,
+        category: "Blocks & Bricks",
+        unitAbbr: "pcs", 
+        description: "Standard 8-inch concrete blocks"
       },
       {
-        name: "Notebook Set",
-        sku: "NS-005",
-        quantity: 150,
-        price: 12.99,
-        category: "Stationery",
-        costPrice: 6.50,
-        reorderLevel: 50,
-        supplier: "Office Depot"
+        name: "Construction Sand",
+        sku: "AGG-001",
+        quantity: 15,
+        price: 35.00,
+        category: "Sand & Gravel",
+        unitAbbr: "m³",
+        description: "Fine construction sand"
       },
       {
-        name: "USB-C Cable",
-        sku: "UC-006",
-        quantity: 3,
-        price: 19.99,
-        category: "Electronics",
-        costPrice: 8.00,
-        reorderLevel: 25,
-        supplier: "Tech Supplies Inc"
+        name: "Electrical Wire 12 AWG",
+        sku: "ELE-001",
+        quantity: 500,
+        price: 1.80,
+        category: "Electrical",
+        unitAbbr: "m",
+        description: "12 AWG electrical wire"
       },
       {
-        name: "Monitor Stand",
-        sku: "MS-007",
-        quantity: 12,
-        price: 89.99,
-        category: "Accessories",
-        costPrice: 52.00,
-        reorderLevel: 8,
-        supplier: "Manufacturing Ltd"
+        name: "PVC Pipe 4\" x 6m",
+        sku: "PLB-001",
+        quantity: 80,
+        price: 22.00,
+        category: "Plumbing",
+        unitAbbr: "pcs",
+        description: "4-inch PVC pipe"
       },
       {
-        name: "Keyboard",
-        sku: "KB-008",
-        quantity: 28,
-        price: 119.99,
-        category: "Electronics",
-        costPrice: 68.00,
-        reorderLevel: 15,
-        supplier: "Tech Supplies Inc"
+        name: "Galvanized Bolts 1/2\" x 6\"",
+        sku: "HW-001",
+        quantity: 500,
+        price: 1.35,
+        category: "Hardware",
+        unitAbbr: "pcs",
+        description: "Galvanized bolts"
       },
       {
-        name: "Printer Paper",
-        sku: "PP-009",
-        quantity: 85,
-        price: 24.99,
-        category: "Stationery",
-        costPrice: 12.00,
-        reorderLevel: 30,
-        supplier: "Office Depot"
+        name: "Shovel - Heavy Duty",
+        sku: "TL-001",
+        quantity: 25,
+        price: 25.00,
+        category: "Tools & Equipment",
+        unitAbbr: "pcs",
+        description: "Heavy-duty shovel"
       },
       {
-        name: "Webcam",
-        sku: "WC-010",
-        quantity: 7,
-        price: 159.99,
-        category: "Electronics",
-        costPrice: 95.00,
-        reorderLevel: 12,
-        supplier: "Tech Supplies Inc"
+        name: "2x4 Lumber 8ft",
+        sku: "LBR-001",
+        quantity: 200,
+        price: 6.25,
+        category: "Lumber & Wood",
+        unitAbbr: "pcs",
+        description: "2x4 lumber for framing"
       }
     ];
 
-    // Insert products with MAUC initialization
+    // Insert products
     const productIds = [];
     for (const product of sampleProducts) {
-      const initialCost = product.costPrice || product.price;
-      const productWithMAUC = {
-        ...product,
-        // Add required MAUC fields
-        movingAverageCost: initialCost,
-        totalCostInStock: product.quantity * initialCost,
-        totalUnitsInStock: product.quantity,
-        unitOfMeasure: "pcs", // Default unit
-        lastPurchasePrice: initialCost,
-        lastPurchaseDate: Date.now(),
-      };
-      const productId = await ctx.db.insert("products", productWithMAUC);
-      productIds.push(productId);
+      const categoryId = categoryMap.get(product.category);
+      const unitId = unitMap.get(product.unitAbbr);
+      
+      if (categoryId && unitId) {
+        const productId = await ctx.db.insert("products", {
+          name: product.name,
+          sku: product.sku,
+          quantity: product.quantity,
+          price: product.price,
+          categoryId: categoryId,
+          unitOfMeasureId: unitId,
+          description: product.description
+        });
+        productIds.push(productId);
+        
+        // Create initial inventory transaction
+        await ctx.db.insert("inventoryTransactions", {
+          productId: productId,
+          type: "receive",
+          quantityChange: product.quantity,
+          unitCostAtTransaction: product.price,
+          date: Date.now(),
+          userId: user._id,
+          notes: `Initial stock for ${product.name}`,
+        });
+      }
     }
 
-    // Insert purchase orders
-    for (const po of samplePOs) {
-      await ctx.db.insert("purchaseOrders", po);
-    }
-
-    // Create sample inventory transactions (sales history)
+    // Create sample inventory transactions (additional activity)
     const sampleTransactions = [];
     const now = Date.now();
     
     // Generate transactions for the last 6 months
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 25; i++) {
       const randomProductId = productIds[Math.floor(Math.random() * productIds.length)];
       const randomDaysAgo = Math.floor(Math.random() * 180); // Last 6 months
       const transactionDate = now - (randomDaysAgo * 24 * 60 * 60 * 1000);
       
       const transaction = {
         productId: randomProductId,
-        type: Math.random() > 0.3 ? "sale" : "purchase", // 70% sales, 30% purchases
-        quantity: Math.floor(Math.random() * 10) + 1,
-        unitPrice: 20 + Math.random() * 100,
+        type: Math.random() > 0.3 ? "pull" as const : "receive" as const, // 70% pulls, 30% receives
+        quantityChange: Math.random() > 0.3 ? -(Math.floor(Math.random() * 10) + 1) : (Math.floor(Math.random() * 5) + 1),
+        unitCostAtTransaction: 20 + Math.random() * 100,
         date: transactionDate,
-        reference: `TXN-${1000 + i}`,
-        userId: user._id // Add the required userId field
+        userId: user._id,
+        notes: `Sample transaction ${i + 1}`
       };
       
       sampleTransactions.push(transaction);
     }
 
-    // Insert transactions
+    // Insert additional transactions
     for (const transaction of sampleTransactions) {
       await ctx.db.insert("inventoryTransactions", transaction);
     }
 
-    return "Sample data created successfully!";
-  }
-});
-
-// Migration function to fix existing products with missing MAUC fields
-export const migrateProductsForMAUC = mutation({
-  args: {},
-  handler: async (ctx) => {
-    // Get all products that might be missing required fields
-    const products = await ctx.db.query("products").collect();
-    let updatedCount = 0;
-
-    for (const product of products) {
-      const needsUpdate = !product.movingAverageCost || 
-                         !product.totalCostInStock || 
-                         !product.totalUnitsInStock || 
-                         !product.unitOfMeasure;
-
-      if (needsUpdate) {
-        const costPrice = product.costPrice || product.price || 0;
-        const quantity = product.quantity || 0;
-        
-        await ctx.db.patch(product._id, {
-          movingAverageCost: product.movingAverageCost || costPrice,
-          totalCostInStock: product.totalCostInStock || (quantity * costPrice),
-          totalUnitsInStock: product.totalUnitsInStock || quantity,
-          unitOfMeasure: product.unitOfMeasure || "pcs",
-          lastPurchasePrice: product.lastPurchasePrice || costPrice,
-          lastPurchaseDate: product.lastPurchaseDate || Date.now(),
-        });
-        updatedCount++;
-      }
-    }
-
-    return `Updated ${updatedCount} products with MAUC fields`;
-  }
-});
-
-// Migration function to fix existing inventory transactions without userId
-export const migrateInventoryTransactions = mutation({
-  args: {},
-  handler: async (ctx) => {
-    // Get current user for migration
-    const userId = await getAuthUserId(ctx);
-    if (!userId) {
-      throw new Error("Not authenticated");
-    }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_auth_id", (q) => q.eq("authId", userId))
-      .unique();
-
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    // Get all inventory transactions without userId
-    const transactions = await ctx.db.query("inventoryTransactions").collect();
-    let updatedCount = 0;
-
-    for (const transaction of transactions) {
-      if (!transaction.userId) {
-        await ctx.db.patch(transaction._id, {
-          userId: user._id,
-        });
-        updatedCount++;
-      }
-    }
-
-    return `Updated ${updatedCount} inventory transactions with userId`;
+    return `B&B Construction sample data created successfully! Created ${productIds.length} products, ${productIds.length} initial transactions, and ${sampleTransactions.length} additional transactions.`;
   }
 });

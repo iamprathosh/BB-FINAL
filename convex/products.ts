@@ -15,14 +15,37 @@ export const listProducts = query({
 });
 
 export const getProductsByCategory = query({
-  args: { category: v.string() },
+  args: { categoryId: v.id("categories") },
   handler: async (ctx, args) => {
     const products = await ctx.db
       .query("products")
-      .withIndex("by_category", (q) => q.eq("category", args.category))
+      .withIndex("by_category", (q) => q.eq("categoryId", args.categoryId))
       .order("desc")
       .collect();
     return products;
+  },
+});
+
+// New flexible query for filtering products with optional category filter
+export const getFilteredProducts = query({
+  args: { 
+    categoryId: v.optional(v.id("categories")),
+  },
+  handler: async (ctx, args) => {
+    if (args.categoryId) {
+      // Filter by specific category
+      return await ctx.db
+        .query("products")
+        .withIndex("by_category", (q) => q.eq("categoryId", args.categoryId))
+        .order("desc")
+        .collect();
+    } else {
+      // Return all products if no category specified
+      return await ctx.db
+        .query("products")
+        .order("desc")
+        .collect();
+    }
   },
 });
 
@@ -67,18 +90,12 @@ export const createProduct = mutation({
     sku: v.optional(v.string()), // Make SKU optional for auto-generation
     quantity: v.number(),
     price: v.number(),
-    category: v.string(),
+    categoryId: v.id("categories"),
+    unitOfMeasureId: v.id("unitsOfMeasure"),
     description: v.optional(v.string()),
-    imageUrl: v.optional(v.string()),
-    costPrice: v.optional(v.number()),
-    reorderLevel: v.optional(v.number()),
-    supplier: v.optional(v.string()),
-    // Construction-specific fields
-    unitOfMeasure: v.optional(v.string()),
-    materialType: v.optional(v.string()),
-    specifications: v.optional(v.string()),
-    // MAUC initialization
-    initialCost: v.optional(v.number()),
+    partNumber: v.optional(v.string()),
+    location: v.optional(v.string()),
+    imageId: v.optional(v.id("files")),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -99,8 +116,12 @@ export const createProduct = mutation({
     // Auto-generate SKU if not provided
     let sku = args.sku;
     if (!sku) {
+      // Get category info for SKU generation
+      const category = await ctx.db.get(args.categoryId);
+      const categoryName = category?.name || "UNK";
+      
       // Get category prefix (first 3 letters, uppercase)
-      const categoryPrefix = args.category.replace(/[^A-Za-z]/g, '').substring(0, 3).toUpperCase();
+      const categoryPrefix = categoryName.replace(/[^A-Za-z]/g, '').substring(0, 3).toUpperCase();
       
       // Get name prefix (first 3 letters, uppercase)
       const namePrefix = args.name.replace(/[^A-Za-z]/g, '').substring(0, 3).toUpperCase();
@@ -115,9 +136,6 @@ export const createProduct = mutation({
       // Combine to create SKU: CAT-NAM-0001-1234
       sku = `${categoryPrefix}-${namePrefix}-${sequenceNumber}-${timestamp}`;
     }
-
-    // Initialize MAUC fields
-    const initialCost = args.initialCost || args.costPrice || args.price;
     
     // Create the product
     const productId = await ctx.db.insert("products", {
@@ -125,22 +143,12 @@ export const createProduct = mutation({
       sku: sku,
       quantity: args.quantity,
       price: args.price,
-      category: args.category,
+      categoryId: args.categoryId,
+      unitOfMeasureId: args.unitOfMeasureId,
       description: args.description,
-      imageUrl: args.imageUrl,
-      costPrice: args.costPrice,
-      reorderLevel: args.reorderLevel,
-      supplier: args.supplier,
-      // Construction-specific fields
-      unitOfMeasure: args.unitOfMeasure || "pcs",
-      materialType: args.materialType,
-      specifications: args.specifications,
-      // MAUC fields
-      movingAverageCost: initialCost,
-      totalCostInStock: args.quantity * initialCost,
-      totalUnitsInStock: args.quantity,
-      lastPurchasePrice: initialCost,
-      lastPurchaseDate: Date.now(),
+      partNumber: args.partNumber,
+      location: args.location,
+      imageId: args.imageId,
     });
 
     // Log the action
@@ -161,12 +169,8 @@ export const updateProduct = mutation({
     sku: v.string(),
     quantity: v.number(),
     price: v.number(),
-    category: v.string(),
+    categoryId: v.id("categories"),
     description: v.optional(v.string()),
-    imageUrl: v.optional(v.string()),
-    costPrice: v.optional(v.number()),
-    reorderLevel: v.optional(v.number()),
-    supplier: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -190,12 +194,8 @@ export const updateProduct = mutation({
       sku: args.sku,
       quantity: args.quantity,
       price: args.price,
-      category: args.category,
+      categoryId: args.categoryId,
       description: args.description,
-      imageUrl: args.imageUrl,
-      costPrice: args.costPrice,
-      reorderLevel: args.reorderLevel,
-      supplier: args.supplier,
     });
 
     // Log the action
@@ -290,11 +290,11 @@ export const pullInventory = mutation({
     await ctx.db.insert("inventoryTransactions", {
       productId: args.productId,
       projectId: args.projectId,
-      type: "pull",
-      quantity: -args.quantity, // Negative for pulls
-      unitPrice: product.price,
-      date: Date.now(),
       userId: user._id,
+      type: "pull",
+      quantityChange: -args.quantity, // Negative for pulls
+      unitCostAtTransaction: product.price,
+      date: Date.now(),
       notes: args.notes,
     });
 
@@ -348,11 +348,11 @@ export const returnInventory = mutation({
     await ctx.db.insert("inventoryTransactions", {
       productId: args.productId,
       projectId: args.projectId,
-      type: "return",
-      quantity: args.quantity, // Positive for returns
-      unitPrice: product.price,
-      date: Date.now(),
       userId: user._id,
+      type: "return",
+      quantityChange: args.quantity, // Positive for returns
+      unitCostAtTransaction: product.price,
+      date: Date.now(),
       notes: args.notes,
     });
 
@@ -400,46 +400,31 @@ export const receiveInventory = mutation({
       throw new Error("Product not found");
     }
 
-    // Calculate MAUC (Moving Average Unit Cost)
-    // Formula: (Current Inventory Value + New Purchase Value) / (Current Quantity + New Quantity)
+    // Calculate weighted average price with safe MAUC initialization
+    const currentPrice = product.price ?? args.unitPrice ?? 0;
+    const currentQuantity = product.quantity ?? 0;
     
-    // Initialize MAUC fields if they don't exist yet
-    const currentMAUC = product.movingAverageCost ?? product.costPrice ?? 0;
-    const totalCostInStock = product.totalCostInStock ?? (currentMAUC * product.quantity);
-    const totalUnitsInStock = product.totalUnitsInStock ?? product.quantity;
-    
-    // Calculate new values for receiving inventory
-    const newPurchaseValue = args.quantity * args.unitPrice;
-    const newTotalCostInStock = totalCostInStock + newPurchaseValue;
-    const newTotalUnitsInStock = totalUnitsInStock + args.quantity;
-    const newMAUC = newTotalUnitsInStock > 0 ? newTotalCostInStock / newTotalUnitsInStock : 0;
+    const currentValue = currentQuantity * currentPrice;
+    const newValue = args.quantity * args.unitPrice;
+    const totalValue = currentValue + newValue;
+    const newQuantity = currentQuantity + args.quantity;
+    const newPrice = newQuantity > 0 ? totalValue / newQuantity : args.unitPrice;
 
-    // Update product with new quantity and MAUC values
+    // Update product with new quantity and weighted average price
     await ctx.db.patch(args.productId, {
-      quantity: product.quantity + args.quantity,
-      movingAverageCost: newMAUC,
-      totalCostInStock: newTotalCostInStock,
-      totalUnitsInStock: newTotalUnitsInStock,
-      lastPurchasePrice: args.unitPrice,
-      lastPurchaseDate: Date.now(),
+      quantity: newQuantity,
+      price: newPrice,
     });
 
     // Create transaction record with MAUC data
     await ctx.db.insert("inventoryTransactions", {
       productId: args.productId,
-      type: "receive",
-      quantity: args.quantity,
-      unitPrice: args.unitPrice,
-      date: Date.now(),
-      reference: args.reference,
       userId: user._id,
+      type: "receive",
+      quantityChange: args.quantity,
+      unitCostAtTransaction: args.unitPrice,
+      date: Date.now(),
       notes: args.notes,
-      vendorId: args.vendorId,
-      deliveryReceiptNumber: args.deliveryReceiptNumber,
-      // MAUC tracking fields
-      maucAtTimeOfTransaction: currentMAUC,
-      totalCostImpact: newPurchaseValue,
-      newMaucAfterTransaction: newMAUC,
     });
 
     // Log the action
@@ -451,10 +436,10 @@ export const receiveInventory = mutation({
 
     return {
       productId: args.productId,
-      newMAUC: newMAUC,
-      previousMAUC: currentMAUC,
+      newPrice: newPrice,
+      previousPrice: product.price,
       quantityAdded: args.quantity,
-      newTotalQuantity: product.quantity + args.quantity,
+      newTotalQuantity: newQuantity,
     };
   },
 });

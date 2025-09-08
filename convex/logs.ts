@@ -3,17 +3,17 @@ import { internalMutation, query } from "./_generated/server";
 
 export const add = internalMutation({
   args: {
-    userId: v.id("users"),
+    userId: v.id("appUsers"),
     action: v.string(),
-    details: v.string(),
+    details: v.any(),
     projectId: v.optional(v.id("projects")),
   },
   handler: async (ctx, args) => {
-    const logId = await ctx.db.insert("logs", {
+    const logId = await ctx.db.insert("actionLogs", {
       userId: args.userId,
       action: args.action,
       details: args.details,
-      projectId: args.projectId,
+      timestamp: Date.now(),
     });
     return logId;
   },
@@ -24,7 +24,7 @@ export const list = query({
   handler: async (ctx) => {
     // Fetch logs with user information
     const logs = await ctx.db
-      .query("logs")
+      .query("actionLogs")
       .order("desc")
       .collect();
 

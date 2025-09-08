@@ -1,154 +1,233 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { authTables } from "@convex-dev/auth/server";
+
+// Define a reusable type for user roles to ensure consistency.
+const userRoles = v.union(
+  v.literal("admin"),
+  v.literal("supervisor"),
+  v.literal("worker")
+);
 
 export default defineSchema({
+  // Authentication tables (required by Convex Auth)
+  ...authTables,
+
+  // =================================================================
+  // Core User and Authentication Tables
+  // =================================================================
+
+  /**
+   * @table users
+   * @description Stores application-specific user data, linking to the
+   * authentication identity. This table holds profiles and role-based
+   * access control information.
+   */
   users: defineTable({
-    authId: v.string(), // Reference to Convex Auth user ID
     name: v.string(),
     email: v.string(),
-    role: v.optional(v.string()), // "worker", "supervisor", "admin"
-    isActive: v.optional(v.boolean()),
-  }).index("by_auth_id", ["authId"]).index("by_role", ["role"]),
+    imageUrl: v.optional(v.string()),
+    title: v.optional(v.string()), // E.g., "Site Manager", "Foreman"
+    role: userRoles,
+    // This connects the user to the authentication provider.
+    authId: v.string(),
+  }).index("by_auth_id", ["authId"]), // Essential for mapping auth user to app user.
 
+  // =================================================================
+  // Inventory Management Tables
+  // =================================================================
+
+  /**
+   * @table products
+   * @description Central repository for all inventory items.
+   */
   products: defineTable({
     name: v.string(),
-    sku: v.string(),
-    quantity: v.number(),
-    price: v.number(), // Selling price
-    category: v.string(),
-    
-    // MAUC fields
-    movingAverageCost: v.number(), // Current MAUC
-    totalCostInStock: v.number(), // Total cost of current inventory
-    totalUnitsInStock: v.number(), // Total units in stock (should match quantity)
-    lastPurchasePrice: v.optional(v.number()),
-    lastPurchaseDate: v.optional(v.number()),
-    
-    // Construction-specific fields
-    unitOfMeasure: v.string(), // "pcs", "tons", "m3", "m2", "kg", "lbs", etc.
-    materialType: v.optional(v.string()), // "steel", "concrete", "lumber", "electrical", etc.
-    specifications: v.optional(v.string()), // Technical specs, grade, etc.
-    
-    // Legacy fields (keeping for compatibility)
-    costPrice: v.optional(v.number()), // Will be deprecated in favor of MAUC
-    reorderLevel: v.optional(v.number()),
-    supplier: v.optional(v.string()),
-    imageUrl: v.optional(v.string()),
     description: v.optional(v.string()),
-  }).searchIndex("by_name", {
-    searchField: "name",
-  }).index("by_category", ["category"]).index("by_material_type", ["materialType"]),
-
-  projects: defineTable({
-    name: v.string(),
-    description: v.optional(v.string()),
-    startDate: v.number(),
-    endDate: v.optional(v.number()),
-    status: v.string(), // "active", "completed", "on-hold"
-    budget: v.optional(v.number()),
-    manager: v.id("users"),
-  }).index("by_status", ["status"]).index("by_manager", ["manager"]),
-
-  inventoryTransactions: defineTable({
-    productId: v.id("products"),
-    projectId: v.optional(v.id("projects")),
-    type: v.string(), // "sale", "purchase", "adjustment", "pull", "return", "receive"
-    quantity: v.number(),
-    unitPrice: v.number(),
-    
-    // MAUC tracking fields
-    maucAtTimeOfTransaction: v.optional(v.number()), // MAUC when this transaction occurred
-    totalCostImpact: v.optional(v.number()), // Total cost impact on inventory
-    newMaucAfterTransaction: v.optional(v.number()), // MAUC after this transaction
-    
-    date: v.number(),
-    reference: v.optional(v.string()), // PO number, delivery receipt, etc.
-    userId: v.optional(v.id("users")), // Made optional to handle existing data
-    notes: v.optional(v.string()),
-    
-    // Receiving-specific fields
-    vendorId: v.optional(v.id("vendors")), // Vendor for purchase transactions
-    deliveryReceiptNumber: v.optional(v.string()),
-  }).index("by_product", ["productId"]).index("by_date", ["date"]).index("by_project", ["projectId"]).index("by_user", ["userId"]).index("by_vendor", ["vendorId"]).index("by_type", ["type"]),
-
-  purchaseOrders: defineTable({
-    poNumber: v.string(),
-    supplier: v.string(),
-    status: v.string(), // "pending", "received", "cancelled"
-    orderDate: v.number(),
-    expectedDate: v.optional(v.number()),
-    totalAmount: v.number(),
-    projectId: v.optional(v.id("projects")),
-    items: v.array(v.object({
-      productId: v.id("products"),
-      quantity: v.number(),
-      unitPrice: v.number(),
-    })),
-  }).index("by_status", ["status"]).index("by_project", ["projectId"]),
-
-  logs: defineTable({
-    userId: v.id("users"),
-    action: v.string(),
-    details: v.string(),
-    projectId: v.optional(v.id("projects")),
-  }).index("by_userId", ["userId"]).index("by_project", ["projectId"]),
-
-  vendors: defineTable({
-    name: v.string(),
-    email: v.string(),
-    phone: v.optional(v.string()),
-    address: v.optional(v.string()),
-    city: v.optional(v.string()),
-    state: v.optional(v.string()),
-    zipCode: v.optional(v.string()),
-    contactPerson: v.optional(v.string()),
-    
-    // Construction vendor specific fields
-    vendorType: v.optional(v.string()), // "supplier", "subcontractor", "service", etc.
-    specialties: v.optional(v.array(v.string())), // Materials or services they provide
-    certifications: v.optional(v.array(v.string())), // Safety, quality certifications
-    paymentTerms: v.optional(v.string()), // "Net 30", "COD", etc.
-    isActive: v.optional(v.boolean()),
-  }),
-
-  vendorProducts: defineTable({
-    vendorId: v.id("vendors"),
-    productId: v.id("products"),
+    sku: v.optional(v.string()), // Stock Keeping Unit
+    partNumber: v.optional(v.string()), // Manufacturer Part Number
+    quantity: v.number(), // Current quantity on hand.
+    // This price represents the Moving Average Unit Cost (MAUC).
     price: v.number(),
-    
-    // Additional vendor-product relationship fields
-    minimumOrderQuantity: v.optional(v.number()),
-    leadTimeDays: v.optional(v.number()),
-    lastPriceUpdate: v.optional(v.number()),
-    isPreferredVendor: v.optional(v.boolean()),
-  }).index("by_vendor", ["vendorId"]).index("by_product", ["productId"]),
+    location: v.optional(v.string()), // E.g., "Warehouse A, Shelf 3"
+    categoryId: v.id("categories"),
+    unitOfMeasureId: v.id("unitsOfMeasure"),
+    imageId: v.optional(v.id("files")),
+  })
+    .index("by_category", ["categoryId"])
+    // Search index for fast text-based searching on product names and SKUs.
+    .searchIndex("search_name_sku", {
+      searchField: "name",
+      filterFields: ["categoryId"],
+    }),
 
-  // Categories for product organization (admin managed)
+  /**
+   * @table categories
+   * @description Organizes products into logical groups.
+   */
   categories: defineTable({
     name: v.string(),
     description: v.optional(v.string()),
-    icon: v.optional(v.string()), // Icon name for UI
-    isActive: v.optional(v.boolean()),
-    createdBy: v.id("users"),
-    createdAt: v.number(),
-  }).index("by_active", ["isActive"]),
+  }).index("by_name", ["name"]),
 
-  // Units of measure (admin managed)
+  /**
+   * @table unitsOfMeasure
+   * @description Defines the measurement units for products (e.g., kg, m, piece).
+   */
   unitsOfMeasure: defineTable({
-    name: v.string(), // "Bag", "Kg", "Piece", "Litre", "Meter", "Ton"
-    abbreviation: v.string(), // "bag", "kg", "pcs", "ltr", "m", "t"
-    type: v.string(), // "weight", "volume", "length", "count", "area"
-    isActive: v.optional(v.boolean()),
-    createdBy: v.id("users"),
-    createdAt: v.number(),
-  }).index("by_type", ["type"]).index("by_active", ["isActive"]),
+    name: v.string(), // E.g., "Kilogram", "Piece", "Meter"
+    abbreviation: v.string(), // E.g., "kg", "pcs", "m"
+  }).index("by_name", ["name"]),
 
-  // File storage for product images
-  files: defineTable({
+  /**
+   * @table inventoryTransactions
+   * @description Logs every single movement of inventory for auditing and
+   * accurate cost tracking.
+   */
+  inventoryTransactions: defineTable({
+    productId: v.id("products"),
+    // If inventory is pulled for a project, this links the transaction.
+    projectId: v.optional(v.id("projects")),
+    // If inventory is part of a PO receipt, this links the transaction.
+    purchaseOrderId: v.optional(v.id("purchaseOrders")),
+    userId: v.id("users"), // User who performed the action.
+    type: v.union(
+      v.literal("pull"), // Pulled from inventory for a project.
+      v.literal("return"), // Returned to inventory from a project.
+      v.literal("receive"), // Received from a vendor via PO.
+      v.literal("adjustment") // Manual stock adjustment.
+    ),
+    quantityChange: v.number(), // Can be negative (pull) or positive (receive).
+    // The MAUC of the product *before* this transaction occurred.
+    // Critical for historical cost analysis.
+    unitCostAtTransaction: v.number(),
+    notes: v.optional(v.string()),
+    date: v.number(), // Transaction timestamp
+  })
+    .index("by_product", ["productId"])
+    .index("by_project", ["projectId"])
+    .index("by_date", ["date"])
+    .index("by_user", ["userId"])
+    .index("by_type", ["type"]),
+
+  // =================================================================
+  // Project Management Tables
+  // =================================================================
+
+  /**
+   * @table projects
+   * @description Manages construction projects that consume inventory.
+   */
+  projects: defineTable({
     name: v.string(),
-    url: v.string(),
-    type: v.string(),
-    size: v.number(),
-    productId: v.optional(v.id("products")),
-  }).index("by_product", ["productId"]),
+    description: v.optional(v.string()),
+    address: v.optional(v.string()),
+    status: v.union(
+      v.literal("Planning"),
+      v.literal("In Progress"),
+      v.literal("On Hold"),
+      v.literal("Completed"),
+      v.literal("Cancelled")
+    ),
+    startDate: v.optional(v.number()), // Stored as Unix timestamp.
+    endDate: v.optional(v.number()), // Stored as Unix timestamp.
+    managerId: v.optional(v.id("users")), // Link to the project manager.
+  })
+    .index("by_status", ["status"])
+    .index("by_manager", ["managerId"]),
+
+  // =================================================================
+  // Vendor and Procurement Tables
+  // =================================================================
+
+  /**
+   * @table vendors
+   * @description Stores information about suppliers and vendors.
+   */
+  vendors: defineTable({
+    name: v.string(),
+    contactPerson: v.optional(v.string()),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    address: v.optional(v.string()),
+    website: v.optional(v.string()),
+  }).index("by_name", ["name"]),
+
+  /**
+   * @table purchaseOrders
+   * @description Manages purchase orders for acquiring new inventory from vendors.
+   */
+  purchaseOrders: defineTable({
+    vendorId: v.id("vendors"),
+    createdById: v.id("users"),
+    approvedById: v.optional(v.id("users")),
+    orderDate: v.number(),
+    expectedDeliveryDate: v.optional(v.number()),
+    status: v.union(
+      v.literal("Draft"),
+      v.literal("Submitted"),
+      v.literal("Approved"),
+      v.literal("Received"),
+      v.literal("Cancelled")
+    ),
+    // Embedding line items directly is efficient for document-based DBs like Convex.
+    lineItems: v.array(
+      v.object({
+        productId: v.id("products"),
+        quantity: v.number(),
+        unitPrice: v.number(), // The price quoted by the vendor for this PO.
+      })
+    ),
+    totalCost: v.number(),
+    notes: v.optional(v.string()),
+  })
+    .index("by_vendor", ["vendorId"])
+    .index("by_status", ["status"])
+    .index("by_created_by", ["createdById"]),
+
+  /**
+   * @table vendorProducts
+   * @description A join table linking vendors to the specific products they supply,
+   * including their pricing and part numbers.
+   */
+  vendorProducts: defineTable({
+    vendorId: v.id("vendors"),
+    productId: v.id("products"),
+    vendorPrice: v.number(), // The standard price from this vendor.
+    vendorSku: v.optional(v.string()), // The vendor's specific SKU for the product.
+  })
+    // This composite index is crucial for efficiently querying:
+    // 1. All products supplied by a vendor.
+    // 2. All vendors who supply a specific product.
+    .index("by_vendor_product", ["vendorId", "productId"]),
+
+  // =================================================================
+  // System and Utility Tables
+  // =================================================================
+
+  /**
+   * @table files
+   * @description Stores metadata for uploaded files, like product images,
+   * linked to Convex's file storage.
+   */
+  files: defineTable({
+    storageId: v.id("_storage"), // Connects to Convex's blob storage.
+    name: v.string(), // Original file name.
+    type: v.string(), // MIME type, e.g., "image/png".
+    uploadedById: v.id("users"),
+  }),
+
+  /**
+   * @table actionLogs
+   * @description A general-purpose table for logging user actions for
+   * auditing and debugging purposes. Renamed from 'logs' for clarity.
+   */
+  actionLogs: defineTable({
+    userId: v.id("users"),
+    action: v.string(), // E.g., "create_product", "pull_inventory", "approve_po"
+    // `v.any()` allows for flexible, action-specific metadata to be stored.
+    details: v.optional(v.any()),
+    timestamp: v.number(), // When the action occurred
+  }).index("by_user", ["userId"])
+    .index("by_timestamp", ["timestamp"]),
 });

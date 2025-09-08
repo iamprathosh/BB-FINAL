@@ -14,44 +14,44 @@ export const getDashboardAnalytics = query({
       return sum + (product.quantity * product.price);
     }, 0);
 
-    // Calculate cost-based inventory value
+    // Calculate cost-based inventory value (using MAUC in price field)
     const totalCostValue = products.reduce((sum, product) => {
-      const costPrice = product.costPrice || product.price * 0.6; // Assume 60% if no cost price
-      return sum + (product.quantity * costPrice);
+      return sum + (product.quantity * product.price); // price field now contains MAUC
     }, 0);
 
-    // Stock alerts (products below reorder level)
+    // Stock alerts (products below reorder level) - using default of 10
     const stockAlerts = products.filter(product => {
-      const reorderLevel = product.reorderLevel || 10; // Default reorder level
+      const reorderLevel = 10; // Default reorder level
       return product.quantity <= reorderLevel;
     });
 
     // Open POs
-    const openPOs = purchaseOrders.filter(po => po.status === "pending");
+    const openPOs = purchaseOrders.filter(po => po.status === "Draft" || po.status === "Submitted");
 
     // Calculate inventory turnover rate (simplified)
     const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
     const recentSales = transactions.filter(t => 
-      t.type === "sale" && t.date >= thirtyDaysAgo
+      t.type === "pull" && t.date >= thirtyDaysAgo
     );
     
     const totalSalesValue = recentSales.reduce((sum, sale) => {
-      return sum + (Math.abs(sale.quantity) * sale.unitPrice);
+      return sum + (Math.abs(sale.quantityChange) * sale.unitCostAtTransaction);
     }, 0);
 
     const inventoryTurnoverRate = totalCostValue > 0 ? 
       (totalSalesValue / totalCostValue) * 12 : 0; // Annualized
 
-    // Category breakdown
-    const categoryData = products.reduce((acc, product) => {
-      const category = product.category;
-      if (!acc[category]) {
-        acc[category] = { name: category, value: 0, count: 0 };
+    // Category breakdown - need to fetch category names via categoryId
+    const categoryData = {} as Record<string, { name: string; value: number; count: number }>;
+    for (const product of products) {
+      const category = await ctx.db.get(product.categoryId);
+      const categoryName = category?.name || "Unknown";
+      if (!categoryData[categoryName]) {
+        categoryData[categoryName] = { name: categoryName, value: 0, count: 0 };
       }
-      acc[category].value += product.quantity * product.price;
-      acc[category].count += 1;
-      return acc;
-    }, {} as Record<string, { name: string; value: number; count: number }>);
+      categoryData[categoryName].value += product.quantity * product.price;
+      categoryData[categoryName].count += 1;
+    }
 
     // Monthly sales trend (last 6 months)
     const sixMonthsAgo = Date.now() - (6 * 30 * 24 * 60 * 60 * 1000);
@@ -62,11 +62,11 @@ export const getDashboardAnalytics = query({
       const monthEnd = Date.now() - ((i - 1) * 30 * 24 * 60 * 60 * 1000);
       
       const monthTransactions = transactions.filter(t => 
-        t.type === "sale" && t.date >= monthStart && t.date < monthEnd
+        t.type === "pull" && t.date >= monthStart && t.date < monthEnd
       );
       
       const monthSales = monthTransactions.reduce((sum, sale) => {
-        return sum + (Math.abs(sale.quantity) * sale.unitPrice);
+        return sum + (Math.abs(sale.quantityChange) * sale.unitCostAtTransaction);
       }, 0);
 
       const monthName = new Date(monthStart).toLocaleDateString('en-US', { month: 'short' });
@@ -112,11 +112,11 @@ export const getDashboardAnalytics = query({
     );
 
     // Active projects summary
-    const activeProjects = projects.filter(p => p.status === "active");
+    const activeProjects = projects.filter(p => p.status === "In Progress");
     const projectSummary = activeProjects.map(project => {
       const projectTransactions = transactions.filter(t => t.projectId === project._id);
       const totalCost = projectTransactions.reduce((sum, t) => 
-        sum + (Math.abs(t.quantity) * t.unitPrice), 0
+        sum + (Math.abs(t.quantityChange) * t.unitCostAtTransaction), 0
       );
       
       return {
@@ -147,13 +147,12 @@ export const getDashboardAnalytics = query({
           name: product.name,
           sku: product.sku,
           currentStock: product.quantity,
-          reorderLevel: product.reorderLevel || 10
+          reorderLevel: 10
         })),
         openPOs: openPOs.map(po => ({
           id: po._id,
-          poNumber: po.poNumber,
-          supplier: po.supplier,
-          totalAmount: po.totalAmount,
+          status: po.status,
+          totalAmount: po.totalCost,
           orderDate: po.orderDate
         }))
       },

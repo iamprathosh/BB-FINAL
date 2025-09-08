@@ -4,6 +4,8 @@ import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
 import { ReactNode } from "react";
 import { useAuthActions, useAuthToken } from "@convex-dev/auth/react";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
@@ -19,11 +21,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export { useAuthActions } from "@convex-dev/auth/react";
 export { useAuthToken } from "@convex-dev/auth/react";
 
-// Custom hook to simulate useCurrentUser functionality
+// Custom hook to get the current authenticated user's complete profile
 export function useCurrentUser() {
-  const authToken = useAuthToken();
-  // Return the token if authenticated, null if not authenticated, undefined if loading
-  return authToken;
+  // Use the 'current' query to fetch the full user document from the users table
+  const user = useQuery(api.users.current);
+  return user;
 }
 
 export function useConvexAuth() {
@@ -36,3 +38,4 @@ export function useConvexAuth() {
     login: signIn,
     logout: signOut,
   };
+}
